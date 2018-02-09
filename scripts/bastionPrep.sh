@@ -1,11 +1,21 @@
 #!/bin/bash
 echo $(date) " - Starting Bastion Prep Script"
 
+set -e
+
+curruser=$(ps -o user= -p $$ | awk '{print $1}')
+echo "Executing script as user: $curruser"
+echo "args: $*"
+
 USERNAME_ORG=$1
 PASSWORD_ACT_KEY="$2"
 POOL_ID=$3
 PRIVATEKEY=$4
 SUDOUSER=$5
+
+# Provide current variables if needed for troubleshooting
+#set -o posix ; set
+echo "Command line args: $@"
 
 Generate private keys for use by Ansible
 echo $(date) " - Generating Private keys for use by Ansible for OpenShift Installation"
