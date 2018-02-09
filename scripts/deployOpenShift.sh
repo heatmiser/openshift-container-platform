@@ -4,6 +4,10 @@ echo $(date) " - Starting Script"
 
 set -e
 
+curruser=$(ps -o user= -p $$ | awk '{print $1}')
+echo "Executing script as user: $curruser"
+echo "args: $*"
+
 export SUDOUSER=$1
 export PASSWORD="$2"
 export MASTER=$3
@@ -35,11 +39,18 @@ export BASTION=$(hostname)
 CLOUD=$( curl -H Metadata:true "http://169.254.169.254/metadata/instance/compute/location?api-version=2017-04-02&format=text" | cut -c 1-2 )
 export CLOUD=${CLOUD^^}
 
-export MASTERLOOP=$((MASTERCOUNT - 1))
-export INFRALOOP=$((INFRACOUNT - 1))
-export NODELOOP=$((NODECOUNT - 1))
+printf -v MASTERLOOP "%02d" $((MASTERCOUNT - 1))
+export MASTERLOOP
+printf -v INFRALOOP "%02d" $((INFRACOUNT - 1))
+export INFRALOOP
+printf -v NODELOOP "%02d" $((NODECOUNT - 1))
+export NODELOOP
 
-echo "Configuring SSH ControlPath to use shorter path name"
+# Provide current variables if needed for troubleshooting
+#set -o posix ; set
+echo "Command line args: $@"
+
+echo $(date) "- Configuring SSH ControlPath to use shorter path name"
 
 sed -i -e "s/^# control_path = %(directory)s\/%%h-%%r/control_path = %(directory)s\/%%h-%%r/" /etc/ansible/ansible.cfg
 sed -i -e "s/^#host_key_checking = False/host_key_checking = False/" /etc/ansible/ansible.cfg
@@ -66,11 +77,11 @@ cat > /home/${SUDOUSER}/addocpuser.yml <<EOF
     shell: "htpasswd -cb /etc/origin/master/htpasswd {{ lookup('env','SUDOUSER') }} \"{{ lookup('env','PASSWORD') }}\""
 EOF
 
-# Run on only MASTER-0 - Make initial OpenShift User a Cluster Admin
+# Run on MASTER-00 - Make initial OpenShift User a Cluster Admin
 
 cat > /home/${SUDOUSER}/assignclusteradminrights.yml <<EOF
 ---
-- hosts: master0
+- hosts: master00
   gather_facts: no
   remote_user: "{{ lookup('env','SUDOUSER') }}"
   become: yes
@@ -98,7 +109,7 @@ cat > /home/${SUDOUSER}/assignrootpassword.yml <<EOF
     shell: echo \"{{ lookup('env','PASSWORD') }}\"|passwd root --stdin
 EOF
 
-# Run on MASTER-0 node - configure registry to use Azure Storage
+# Run on MASTER-00 node - configure registry to use Azure Storage
 # Create docker registry config based on Commercial Azure or Azure Government
 
 if [[ $CLOUD == "US" ]]
@@ -106,7 +117,7 @@ then
 
 cat > /home/${SUDOUSER}/dockerregistry.yml <<EOF
 ---
-- hosts: master0
+- hosts: master00
   gather_facts: no
   remote_user: "{{ lookup('env','SUDOUSER') }}"
   become: yes
@@ -122,7 +133,7 @@ else
 
 cat > /home/${SUDOUSER}/dockerregistry.yml <<EOF
 ---
-- hosts: master0
+- hosts: master00
   gather_facts: no
   remote_user: "{{ lookup('env','SUDOUSER') }}"
   become: yes
@@ -136,11 +147,11 @@ EOF
 
 fi
 
-# Run on MASTER-0 node - configure Storage Class
+# Run on MASTER-00 - configure Storage Class
 
 cat > /home/${SUDOUSER}/configurestorageclass.yml <<EOF
 ---
-- hosts: master0
+- hosts: master00
   gather_facts: no
   remote_user: "{{ lookup('env','SUDOUSER') }}"
   become: yes
@@ -392,12 +403,12 @@ EOF
 
 # Create Playbook to delete stuck Master nodes and set as not schedulable
 
-cat > /home/${SUDOUSER}/deletestucknodes.yml <<EOF
+cat > /home/${SUDOUSER}/masternonschedulable.yml <<EOF
 - hosts: masters
   gather_facts: no
   become: yes
   vars:
-    description: "Reset Masters to non-schedulable"
+    description: "Set masters as non-schedulable"
   tasks:
   - name: set masters as unschedulable
     command: oadm manage-node {{inventory_hostname}} --schedulable=false
@@ -412,7 +423,7 @@ cat > /etc/ansible/hosts <<EOF
 masters
 nodes
 etcd
-master0
+master00
 new_nodes
 
 # Set variables common for all OSEv3 hosts
@@ -469,14 +480,14 @@ openshift_logging_master_public_url=https://$MASTERPUBLICIPHOSTNAME:8443
 
 # host group for masters
 [masters]
-$MASTER-[0:${MASTERLOOP}]
+$MASTER-[00:${MASTERLOOP}]
 
 # host group for etcd
 [etcd]
-$MASTER-[0:${MASTERLOOP}] 
+$MASTER-[00:${MASTERLOOP}] 
 
-[master0]
-$MASTER-0
+[master00]
+$MASTER-00
 
 # host group for nodes
 [nodes]
@@ -486,21 +497,24 @@ EOF
 
 for (( c=0; c<$MASTERCOUNT; c++ ))
 do
-  echo "$MASTER-$c openshift_node_labels=\"{'type': 'master', 'zone': 'default'}\" openshift_hostname=$MASTER-$c" >> /etc/ansible/hosts
+  printf -v hostnum "%02d" $c
+  echo "$MASTER-$hostnum openshift_node_labels=\"{'type': 'master', 'zone': 'default'}\" openshift_hostname=$MASTER-$hostnum" >> /etc/ansible/hosts
 done
 
 # Loop to add Infra Nodes
 
 for (( c=0; c<$INFRACOUNT; c++ ))
 do
-  echo "$INFRA-$c openshift_node_labels=\"{'type': 'infra', 'zone': 'default'}\" openshift_hostname=$INFRA-$c" >> /etc/ansible/hosts
+  printf -v hostnum "%02d" $c
+  echo "$INFRA-$hostnum openshift_node_labels=\"{'type': 'infra', 'zone': 'default'}\" openshift_hostname=$INFRA-$hostnum" >> /etc/ansible/hosts
 done
 
 # Loop to add Nodes
 
 for (( c=0; c<$NODECOUNT; c++ ))
 do
-  echo "$NODE-$c openshift_node_labels=\"{'type': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$c" >> /etc/ansible/hosts
+  printf -v hostnum "%02d" $c
+  echo "$NODE-$hostnum openshift_node_labels=\"{'type': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum" >> /etc/ansible/hosts
 done
 
 # Create new_nodes group
@@ -511,7 +525,7 @@ cat >> /etc/ansible/hosts <<EOF
 [new_nodes]
 EOF
 
-#echo $(date) " - Running network_manager.yml playbook" 
+echo $(date) " - Running network_manager.yml playbook"
 DOMAIN=`domainname -d` 
 
 # Setup NetworkManager to manage eth0 
@@ -643,7 +657,7 @@ then
 	echo $(date) "- Sleep for 120"
 	
 	sleep 120
-	runuser $SUDOUSER -c "ansible-playbook ~/deletestucknodes.yml"
+	runuser $SUDOUSER -c "ansible-playbook ~/masternonschedulable.yml"
 
 	if [ $? -eq 0 ]
 	then
@@ -669,9 +683,9 @@ then
 	echo $(date) "- Deploying Metrics"
 	if [ $AZURE == "true" ]
 	then
-		runuser $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-metrics.yml -e openshift_metrics_install_metrics=True -e openshift_metrics_cassandra_storage_type=dynamic"
+		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-metrics.yml -e openshift_metrics_install_metrics=True -e openshift_metrics_cassandra_storage_type=dynamic"
 	else
-		runuser $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-metrics.yml -e openshift_metrics_install_metrics=True"
+		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-metrics.yml -e openshift_metrics_install_metrics=True"
 	fi
 	if [ $? -eq 0 ]
 	then
@@ -690,9 +704,9 @@ then
 	echo $(date) "- Deploying Logging"
 	if [ $AZURE == "true" ]
 	then
-		runuser $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-logging.yml -e openshift_logging_install_logging=True -e openshift_hosted_logging_storage_kind=dynamic"
+		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-logging.yml -e openshift_logging_install_logging=True -e openshift_hosted_logging_storage_kind=dynamic"
 	else
-		runuser $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-logging.yml -e openshift_logging_install_logging=True"
+		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/openshift-cluster/openshift-logging.yml -e openshift_logging_install_logging=True"
 	fi
 	if [ $? -eq 0 ]
 	then

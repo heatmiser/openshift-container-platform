@@ -1,12 +1,22 @@
 #!/bin/bash
 echo $(date) " - Starting Master Prep Script"
 
+set -e
+
+curruser=$(ps -o user= -p $$ | awk '{print $1}')
+echo "Executing script as user: $curruser"
+echo "args: $*"
+
 USERNAME_ORG=$1
 PASSWORD_ACT_KEY="$2"
 POOL_ID=$3
 SUDOUSER=$4
 LOCATION=$5
 STORAGEACCOUNT=$6
+
+# Provide current variables if needed for troubleshooting
+#set -o posix ; set
+echo "Command line args: $@"
 
 # Remove RHUI
 
@@ -106,9 +116,9 @@ fi
 systemctl enable docker
 systemctl start docker
 
-# Create Storage Class yml files on MASTER-0
+# Create Storage Class yml files on MASTER-00
 
-if hostname -f|grep -- "-0" >/dev/null
+if hostname -f|grep -- "-00" >/dev/null
 then
 cat <<EOF > /home/${SUDOUSER}/scunmanaged.yml
 kind: StorageClass
