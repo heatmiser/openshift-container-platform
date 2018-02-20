@@ -17,7 +17,7 @@ SUDOUSER=$5
 #set -o posix ; set
 echo "Command line args: $@"
 
-Generate private keys for use by Ansible
+# Generate private keys for use by Ansible
 echo $(date) " - Generating Private keys for use by Ansible for OpenShift Installation"
 
 runuser -l $SUDOUSER -c "echo \"$PRIVATEKEY\" > ~/.ssh/id_rsa"
@@ -81,24 +81,12 @@ echo $(date) " - Installing OpenShift utilities"
 yum -y install atomic-openshift-utils
 
 # Create playbook to update ansible.cfg file to include path to library
-
-cat > updateansiblecfg.yaml <<EOF
-#!/usr/bin/ansible-playbook
-
-- hosts: localhost
-  gather_facts: no
-  tasks:
-  - lineinfile:
-      dest: /etc/ansible/ansible.cfg
-      regexp: '^library '
-      insertafter: '#library        = /usr/share/my_modules/'
-      line: 'library = /usr/share/ansible/openshift-ansible/library/'
-EOF
+# Filename: updateansiblecfg.yaml
 
 # Run Ansible Playbook to update ansible.cfg file
 
 echo $(date) " - Updating ansible.cfg file"
-
+wget https://raw.githubusercontent.com/heatmiser/openshift-container-platform-playbooks/master/updateansiblecfg.yaml
 ansible-playbook ./updateansiblecfg.yaml
 
 echo $(date) " - Script Complete"
