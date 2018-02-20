@@ -82,7 +82,7 @@ else
 fi
 
 # Cloning Ansible playbook repository
-(cd /home/$SUDOUSER && git clone https://github.com/Microsoft/openshift-container-platform-playbooks.git)
+(cd /home/$SUDOUSER && git clone https://github.com/heatmiser/openshift-container-platform-playbooks.git)
 
 # Run on MASTER-00 node - configure Storage Class
 # Filename: configurestorageclass.yaml
