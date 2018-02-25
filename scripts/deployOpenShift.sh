@@ -173,6 +173,8 @@ openshift_logging_curator_nodeselector={"type":"infra"}
 openshift_master_logging_public_url=https://kibana.$ROUTING
 openshift_logging_master_public_url=https://$MASTERPUBLICIPHOSTNAME:8443
 openshift_logging_storage_labels={'storage': 'logging'}
+# Bug 1544243 - Elasticsearch fails to scale up during installation when multiple replicas specified
+logging_elasticsearch_rollout_override=true
 
 # host group for masters
 [masters]
