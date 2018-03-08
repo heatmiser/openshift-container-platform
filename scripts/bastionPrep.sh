@@ -121,6 +121,9 @@ systemctl enable docker
 systemctl start docker
 groupadd docker
 
+# Add $SUDOUSER to docker group
+usermod -a -G docker $SUDOUSER
+
 # Create playbook to update ansible.cfg file to include path to library
 # Filename: updateansiblecfg.yaml
 
