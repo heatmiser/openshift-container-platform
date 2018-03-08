@@ -115,10 +115,11 @@ else
    exit 5
 fi
 
-# Enable and start Docker services
+# Enable and start Docker services, create docker usergroup
 
 systemctl enable docker
 systemctl start docker
+groupadd docker
 
 # Create playbook to update ansible.cfg file to include path to library
 # Filename: updateansiblecfg.yaml
