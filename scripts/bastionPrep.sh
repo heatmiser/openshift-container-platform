@@ -36,6 +36,9 @@ subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_A
 if [ $? -eq 0 ]
 then
    echo "Subscribed successfully"
+elif [ $? -eq 64 ]
+   then
+       echo "This system is already registered."
 else
    echo "Incorrect Username / Password or Organization ID / Activation Key specified"
    exit 3
@@ -64,14 +67,17 @@ subscription-manager repos --disable="*"
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
-    --enable="rhel-7-server-ose-3.7-rpms" \
+    --enable="rhel-7-server-ose-3.9-rpms" \
+    --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rhel-7-fast-datapath-rpms"
 
-# Install base packages and update system to latest packages
-echo $(date) " - Install base packages and update system to latest packages"
-
-yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct
+# Update system to latest packages
+echo $(date) " - Update system to latest packages"
 yum -y update --exclude=WALinuxAgent
+
+# Install base packages and update system to latest packages
+echo $(date) " - Install base packages"
+yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
 atomic-openshift-excluder unexclude
 
@@ -86,7 +92,7 @@ yum -y install atomic-openshift-utils
 # Run Ansible Playbook to update ansible.cfg file
 
 echo $(date) " - Updating ansible.cfg file"
-wget https://raw.githubusercontent.com/heatmiser/openshift-container-platform-playbooks/master/updateansiblecfg.yaml
-ansible-playbook ./updateansiblecfg.yaml
+wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 5 https://raw.githubusercontent.com/heatmiser/openshift-container-platform-playbooks/master/updateansiblecfg.yaml
+ansible-playbook -f 10 ./updateansiblecfg.yaml
 
 echo $(date) " - Script Complete"
