@@ -18,6 +18,9 @@ subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_A
 if [ $? -eq 0 ]
 then
    echo "Subscribed successfully"
+elif [ $? -eq 64 ]
+   then
+       echo "This system is already registered."
 else
    echo "Incorrect Username / Password or Organization ID / Activation Key specified"
    exit 3
@@ -46,7 +49,8 @@ subscription-manager repos --disable="*"
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
-    --enable="rhel-7-server-ose-3.7-rpms" \
+    --enable="rhel-7-server-ose-3.9-rpms" \
+    --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rhel-7-fast-datapath-rpms"
 
 # Install base packages and update system to latest packages
@@ -65,22 +69,22 @@ echo $(date) " - Grow Root FS"
 rootdev=`findmnt --target / -o SOURCE -n`
 rootdrivename=`lsblk -no pkname $rootdev`
 rootdrive="/dev/"$rootdrivename
-majorminor=`lsblk  $rootdev -o MAJ:MIN | tail -1`
-part_number=${majorminor#*:}
+name=`lsblk  $rootdev -o NAME | tail -1`
+part_number=${name#*${rootdrivename}}
 
 growpart $rootdrive $part_number -u on
 xfs_growfs $rootdev
 
-# Install Docker 1.12.x
-echo $(date) " - Installing Docker 1.12.x"
-
+# Install Docker
+echo $(date) " - Installing Docker"
 yum -y install docker
+
 sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-registry 172.30.0.0/16'#" /etc/sysconfig/docker
 
 # Create thin pool logical volume for Docker
 echo $(date) " - Creating thin pool logical volume for Docker and staring service"
 
-DOCKERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1  | awk 'NR==1' )
+DOCKERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
 
 echo "DEVS=${DOCKERVG}" >> /etc/sysconfig/docker-storage-setup
 echo "VG=docker-vg" >> /etc/sysconfig/docker-storage-setup
