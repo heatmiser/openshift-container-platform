@@ -77,7 +77,7 @@ yum -y update --exclude=WALinuxAgent
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages"
-yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct
+yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct tmux
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
 atomic-openshift-excluder unexclude
 
