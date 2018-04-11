@@ -241,6 +241,12 @@ EOF
 #echo $(date) " - Running network_manager.yml playbook"
 DOMAIN=`domainname -d`
 
+# Reboot all nodes prior to beginning any install/config steps
+echo $(date) " - Reboot all nodes prior to beginning..."
+runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-master.yaml"
+runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-nodes.yaml"
+sleep 10
+
 # Create /etc/origin/cloudprovider/azure.conf on all hosts if Azure is enabled
 if [[ $AZURE == "true" ]]
 then
