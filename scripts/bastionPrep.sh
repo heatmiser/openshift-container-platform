@@ -72,15 +72,52 @@ subscription-manager repos \
     --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rhel-7-fast-datapath-rpms"
 
-# Update system to latest packages
-echo $(date) " - Update system to latest packages"
-yum -y update --exclude=WALinuxAgent
-
 # Install base packages and update system to latest packages
-echo $(date) " - Install base packages"
-yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct
+echo $(date) " - Install base packages and update system to latest packages"
+yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct tmux
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
 atomic-openshift-excluder unexclude
+yum -y install cloud-utils-growpart.noarch
+yum -y update --exclude=WALinuxAgent
+
+# Grow Root File System
+echo $(date) " - Grow Root FS"
+
+rootdev=`findmnt --target / -o SOURCE -n`
+rootdrivename=`lsblk -no pkname $rootdev`
+rootdrive="/dev/"$rootdrivename
+name=`lsblk  $rootdev -o NAME | tail -1`
+part_number=${name#*${rootdrivename}}
+
+growpart $rootdrive $part_number -u on
+xfs_growfs $rootdev
+
+# Install Docker
+echo $(date) " - Installing Docker"
+yum -y install docker 
+
+sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-registry 172.30.0.0/16'#" /etc/sysconfig/docker
+
+# Create thin pool logical volume for Docker
+echo $(date) " - Creating thin pool logical volume for Docker and staring service"
+
+DOCKERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
+
+echo "DEVS=${DOCKERVG}" >> /etc/sysconfig/docker-storage-setup
+echo "VG=docker-vg" >> /etc/sysconfig/docker-storage-setup
+docker-storage-setup
+if [ $? -eq 0 ]
+then
+   echo "Docker thin pool logical volume created successfully"
+else
+   echo "Error creating logical volume for Docker"
+   exit 5
+fi
+
+# Enable and start Docker services
+
+systemctl enable docker
+systemctl start docker
 
 # Install OpenShift utilities
 echo $(date) " - Installing OpenShift utilities"
