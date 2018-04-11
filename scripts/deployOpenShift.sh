@@ -241,12 +241,6 @@ EOF
 #echo $(date) " - Running network_manager.yml playbook"
 DOMAIN=`domainname -d`
 
-# Reboot all nodes prior to beginning any install/config steps
-echo $(date) " - Reboot all nodes prior to beginning..."
-runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-master.yaml"
-runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-nodes.yaml"
-sleep 10
-
 # Create /etc/origin/cloudprovider/azure.conf on all hosts if Azure is enabled
 if [[ $AZURE == "true" ]]
 then
@@ -269,6 +263,7 @@ runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=NetworkManage
 sleep 5
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli con modify eth0 ipv4.dns-search $DOMAIN\""
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=NetworkManager state=restarted\""
+runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=network state=restarted\""
 
 # Updating all hosts
 echo $(date) " - Updating rpms on all hosts to latest release"
