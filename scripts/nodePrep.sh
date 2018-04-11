@@ -53,7 +53,7 @@ subscription-manager repos \
     --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rhel-7-fast-datapath-rpms"
 
-subscription-manager release --set=7.4
+#subscription-manager release --set=7.4
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
