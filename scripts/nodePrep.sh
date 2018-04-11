@@ -26,6 +26,7 @@ else
    exit 3
 fi
 
+subscription-manager release --set=7.4
 subscription-manager attach --pool=$POOL_ID > attach.log
 if [ $? -eq 0 ]
 then
