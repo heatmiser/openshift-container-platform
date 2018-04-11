@@ -39,7 +39,6 @@ else
    exit 3
 fi
 
-subscription-manager release --set=7.4
 subscription-manager attach --pool=$POOL_ID > attach.log
 if [ $? -eq 0 ]
 then
@@ -66,6 +65,8 @@ subscription-manager repos \
     --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rhel-7-fast-datapath-rpms" 
+
+subscription-manager release --set=7.4
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
