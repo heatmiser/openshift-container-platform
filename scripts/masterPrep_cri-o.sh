@@ -122,8 +122,8 @@ fi
 
 # Enable and start Docker services
 
-#systemctl enable docker
-#systemctl start docker
+systemctl enable docker
+systemctl start docker
 
 # Create Storage Class yml files on MASTER-00
 
