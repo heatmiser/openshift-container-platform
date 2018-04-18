@@ -50,6 +50,20 @@ export NODELOOP
 #set -o posix ; set
 echo "Command line args: $@"
 
+# In openshift-ansible 3.10.0-0.16.0, the openshift_version setting was refactored...
+# Which changes the CRI-O container image variable name, breaking how it is pulled from RH registry
+# This modification fixes it
+echo $(date) " - openshift_version setting refactoring fix applied for ansible fact l_crio_image"
+cat >> /usr/share/ansible/openshift-ansible/playbooks/init/basic_facts.yml <<EOAYF
+
+- name: Set correct CRI-O location
+  hosts: all
+  gather_facts: false
+  tasks:
+  - set_fact:
+      l_crio_image: "registry.access.redhat.com/openshift3/cri-o:v3.9"
+EOAYF
+
 echo $(date) " - Configuring SSH ControlPath to use shorter path name"
 
 sed -i -e "s/^# control_path = %(directory)s\/%%h-%%r/control_path = %(directory)s\/%%h-%%r/" /etc/ansible/ansible.cfg
