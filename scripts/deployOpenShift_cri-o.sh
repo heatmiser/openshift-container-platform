@@ -170,7 +170,8 @@ $CLOUDKIND
 # Enable cri-o
 openshift_use_crio=true
 #openshift_crio_enable_docker_gc=true
-oreg_url=registry.access.redhat.com/openshift3/ose-${component}:${version}
+#oreg_url=registry.access.redhat.com/openshift3/ose-${component}:${version}
+openshift_crio_systemcontainer_image_override=registry.access.redhat.com/openshift3/cri-o:v3.9
 
 # default selectors for router and registry services
 openshift_router_selector='region=infra'
@@ -230,7 +231,7 @@ EOF
 for (( c=0; c<$MASTERCOUNT; c++ ))
 do
   printf -v hostnum "%02d" $c
-  echo "$MASTER-$hostnum openshift_node_labels=\"{'region': 'master', 'zone': 'default'}\" openshift_hostname=$MASTER-$hostnum" >> /etc/ansible/hosts
+  echo "$MASTER-$hostnum openshift_node_labels=\"{'region': 'master', 'zone': 'default', 'runtime': 'cri-o'}\" openshift_hostname=$MASTER-$hostnum" >> /etc/ansible/hosts
 done
 
 # Loop to add Infra Nodes
@@ -238,7 +239,7 @@ done
 for (( c=0; c<$INFRACOUNT; c++ ))
 do
   printf -v hostnum "%02d" $c
-  echo "$INFRA-$hostnum openshift_node_labels=\"{'region': 'infra', 'zone': 'default', 'region': 'infra'}\" openshift_hostname=$INFRA-$hostnum" >> /etc/ansible/hosts
+  echo "$INFRA-$hostnum openshift_node_labels=\"{'region': 'infra', 'zone': 'default', 'runtime': 'cri-o'}\" openshift_hostname=$INFRA-$hostnum" >> /etc/ansible/hosts
 done
 
 # Loop to add Nodes
@@ -246,7 +247,7 @@ done
 for (( c=0; c<$NODECOUNT; c++ ))
 do
   printf -v hostnum "%02d" $c
-  echo "$NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum" >> /etc/ansible/hosts
+  echo "$NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default', 'runtime': 'cri-o'}\" openshift_hostname=$NODE-$hostnum" >> /etc/ansible/hosts
 done
 
 # Create new_nodes group
@@ -282,6 +283,8 @@ runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=NetworkManage
 sleep 5
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli con modify eth0 ipv4.dns-search $DOMAIN\""
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli device reapply eth0\""
+sleep 5
+runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=network state=restarted\""
 
 # Updating all hosts
 echo $(date) " - Updating rpms on all hosts to latest release"
