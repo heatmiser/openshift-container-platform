@@ -39,18 +39,23 @@ else
    exit 3
 fi
 
-subscription-manager attach --pool=$POOL_ID > attach.log
-if [ $? -eq 0 ]
+if [ $POOL_ID == "null" ]
 then
-   echo "Pool attached successfully"
+   echo "Subscribed successfully via Organization ID / Activation Key, no pool attachment necessary."
 else
-   evaluate=$( cut -f 2-5 -d ' ' attach.log )
-   if [[ $evaluate == "unit has already had" ]]
-      then
-         echo "Pool $POOL_ID was already attached and was not attached again."
-	  else
-         echo "Incorrect Pool ID or no entitlements available"
-         exit 4
+   subscription-manager attach --pool=$POOL_ID > attach.log
+   if [ $? -eq 0 ]
+   then
+      echo "Pool attached successfully"
+   else
+      evaluate=$( cut -f 2-5 -d ' ' attach.log )
+      if [[ $evaluate == "unit has already had" ]]
+         then
+            echo "Pool $POOL_ID was already attached and was not attached again."
+	       else
+            echo "Incorrect Pool ID or no entitlements available"
+            exit 4
+      fi
    fi
 fi
 
