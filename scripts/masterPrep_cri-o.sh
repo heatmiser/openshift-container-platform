@@ -97,7 +97,6 @@ part_number=${name#*${rootdrivename}}
 set +e
 gpout=$(growpart --dry-run $rootdrive $part_number -u on 2>&1)
 ret=$?
-set -e
 # if growpart would change something, --dry-run will write something like
 #  CHANGE: partition=1 start=2048 old: size=1024000 end=1026048 new: size=2089192,end=2091240
 # newer versions of growpart will exit
@@ -110,6 +109,7 @@ case "$ret:$gpout" in
 	*) echo "not sure what happened...";;
 esac
 
+set -e
 xfsout=""
 case "$gpout" in
 	CHANGED:*) echo "xfs_growfs: $rootdev"; xfsout=$(xfs_growfs $rootdev);;
