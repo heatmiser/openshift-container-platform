@@ -132,7 +132,11 @@ sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-
 # Create logical volume for containers
 echo $(date) " - Creating logical volume for containers overlay fs"
 
-CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
+if [ -b /dev/vda ] ; then
+    CONTAINERVG=$( parted -m /dev/vda print all 2>/dev/null | grep unknown | grep /dev/vd | cut -d':' -f1 )
+elif [ -b /dev/sda ] ; then
+    CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
+fi
 
 echo "STORAGE_DRIVER=overlay2" > /etc/sysconfig/docker-storage-setup
 echo "DEVS=${CONTAINERVG}" >> /etc/sysconfig/docker-storage-setup
