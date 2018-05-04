@@ -92,8 +92,32 @@ rootdrive="/dev/"$rootdrivename
 name=`lsblk  $rootdev -o NAME | tail -1`
 part_number=${name#*${rootdrivename}}
 
-growpart $rootdrive $part_number -u on
-xfs_growfs $rootdev
+# if growpart fails, it will exit.
+# we capture stderr because on success of dry-run, it writes to stderr what it would do.
+set +e
+gpout=$(growpart --dry-run $rootdrive $part_number -u on 2>&1)
+ret=$?
+set -e
+# if growpart would change something, --dry-run will write something like
+#  CHANGE: partition=1 start=2048 old: size=1024000 end=1026048 new: size=2089192,end=2091240
+# newer versions of growpart will exit
+#   0: with 'CHANGE:*' in output on changed
+#   1: with 'NOCHANGE:*' in output on no-change-necessary
+#   2: error occurred
+case "$ret:$gpout" in
+	0:CHANGE:*) gpout=$(growpart "${rootdisk}" "${partnum}" -u on 2>&1);;
+	[01]:NOCHANGE:*) echo "growpart '$rootdrive'" "${gpout}";;
+	*) echo "not sure what happened...";;
+esac
+
+xfsout=""
+case "$gpout" in
+	CHANGED:*) echo "xfs_growfs: $rootdev"; xfsout=$(xfs_growfs $rootdev);;
+    	NOCHANGE:*) echo "xfs_growfs skipped";;
+		*) echo "GROWROOT: unexpected output: ${out}"
+esac
+
+echo $xfsout
 
 # Install OpenShift utilities
 echo $(date) " - Installing OpenShift utilities"
@@ -105,8 +129,8 @@ yum -y install docker
 
 sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-registry 172.30.0.0/16'#" /etc/sysconfig/docker
 
-# Create thin pool logical volume for containers
-echo $(date) " - Creating thin pool logical volume for containers overlay fs"
+# Create logical volume for containers
+echo $(date) " - Creating logical volume for containers overlay fs"
 
 CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
 
@@ -119,7 +143,7 @@ echo "CONTAINER_ROOT_LV_MOUNT_PATH=/var/lib/containers" >> /etc/sysconfig/docker
 container-storage-setup
 if [ $? -eq 0 ]
 then
-   echo "Containers thin pool logical volume created successfully"
+   echo "Containers logical volume created successfully"
 else
    echo "Error creating logical volume for containers overlay fs"
    exit 5
