@@ -73,7 +73,7 @@ subscription-manager repos \
     --enable="rhel-7-server-extras-rpms" \
     --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
-    --enable="rhel-7-fast-datapath-rpms" 
+    --enable="rhel-7-fast-datapath-rpms"
 
 #subscription-manager release --set=7.4
 
@@ -129,7 +129,7 @@ yum -y install atomic-openshift-utils
 
 # Install Docker
 echo $(date) " - Installing Docker"
-yum -y install docker 
+yum -y install docker
 
 sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-registry 172.30.0.0/16'#" /etc/sysconfig/docker
 
