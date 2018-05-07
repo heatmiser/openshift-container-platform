@@ -1,4 +1,8 @@
 #!/bin/bash
+exec 3>&1 4>&2
+trap 'exec 2>&4 1>&3' 0 1 2 3 RETURN
+exec 1>/var/log/bastionPrep_cri-o.out 2>&1
+
 echo $(date) " - Starting Bastion Prep Script"
 
 set -e
@@ -44,18 +48,23 @@ else
    exit 3
 fi
 
-subscription-manager attach --pool=$POOL_ID > attach.log
-if [ $? -eq 0 ]
+if [ $POOL_ID == "null" ]
 then
-   echo "Pool attached successfully"
+   echo "Subscribed successfully via Organization ID / Activation Key, no pool attachment necessary."
 else
-   evaluate=$( cut -f 2-5 -d ' ' attach.log )
-   if [[ $evaluate == "unit has already had" ]]
-      then
-         echo "Pool $POOL_ID was already attached and was not attached again."
-	  else
-         echo "Incorrect Pool ID or no entitlements available"
-         exit 4
+   subscription-manager attach --pool=$POOL_ID > attach.log
+   if [ $? -eq 0 ]
+   then
+      echo "Pool attached successfully"
+   else
+      evaluate=$( cut -f 2-5 -d ' ' attach.log )
+      if [[ $evaluate == "unit has already had" ]]
+         then
+            echo "Pool $POOL_ID was already attached and was not attached again."
+	       else
+            echo "Incorrect Pool ID or no entitlements available"
+            exit 4
+      fi
    fi
 fi
 
@@ -90,19 +99,47 @@ rootdrive="/dev/"$rootdrivename
 name=`lsblk  $rootdev -o NAME | tail -1`
 part_number=${name#*${rootdrivename}}
 
-growpart $rootdrive $part_number -u on
-xfs_growfs $rootdev
+# if growpart fails, it will exit.
+# we capture stderr because on success of dry-run, it writes to stderr what it would do.
+set +e
+gpout=$(growpart --dry-run $rootdrive $part_number -u on 2>&1)
+ret=$?
+# if growpart would change something, --dry-run will write something like
+#  CHANGE: partition=1 start=2048 old: size=1024000 end=1026048 new: size=2089192,end=2091240
+# newer versions of growpart will exit
+#   0: with 'CHANGE:*' in output on changed
+#   1: with 'NOCHANGE:*' in output on no-change-necessary
+#   2: error occurred
+case "$ret:$gpout" in
+	0:CHANGE:*) gpout=$(growpart "${rootdisk}" "${partnum}" -u on 2>&1);;
+	[01]:NOCHANGE:*) echo "growpart '$rootdrive'" "${gpout}";;
+	*) echo "not sure what happened...";;
+esac
+
+set -e
+xfsout=""
+case "$gpout" in
+	CHANGED:*) echo "xfs_growfs: $rootdev"; xfsout=$(xfs_growfs $rootdev);;
+    	NOCHANGE:*) echo "xfs_growfs skipped";;
+		*) echo "GROWROOT: unexpected output: ${out}"
+esac
+
+echo $xfsout
 
 # Install Docker
 echo $(date) " - Installing Docker"
-yum -y install docker 
+yum -y install docker
 
 sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-registry 172.30.0.0/16'#" /etc/sysconfig/docker
 
-# Create thin pool logical volume for containers
-echo $(date) " - Creating thin pool logical volume for containers overlay fs"
+# Create logical volume for containers
+echo $(date) " - Creating logical volume for containers overlay fs"
 
-CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
+if [ -b /dev/vda ] ; then
+    CONTAINERVG=$( parted -m /dev/vda print all 2>/dev/null | grep unknown | grep /dev/vd | cut -d':' -f1 )
+elif [ -b /dev/sda ] ; then
+    CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
+fi
 
 echo "STORAGE_DRIVER=overlay2" > /etc/sysconfig/docker-storage-setup
 echo "DEVS=${CONTAINERVG}" >> /etc/sysconfig/docker-storage-setup
@@ -113,7 +150,7 @@ echo "CONTAINER_ROOT_LV_MOUNT_PATH=/var/lib/containers" >> /etc/sysconfig/docker
 container-storage-setup
 if [ $? -eq 0 ]
 then
-   echo "Containers thin pool logical volume created successfully"
+   echo "Containers logical volume created successfully"
 else
    echo "Error creating logical volume for containers overlay fs"
    exit 5
