@@ -35,6 +35,8 @@ export LOCATION=${21}
 export COCKPIT=${22}
 export AZURE=${23}
 export STORAGEKIND=${24}
+export CRS=${25}
+export GLUSTERCOUNT=${26}
 
 export BASTION=$(hostname)
 
@@ -48,6 +50,8 @@ printf -v INFRALOOP "%02d" $((INFRACOUNT - 1))
 export INFRALOOP
 printf -v NODELOOP "%02d" $((NODECOUNT - 1))
 export NODELOOP
+printf -v GLUSTERLOOP "%02d" $((GLUSTERCOUNT - 1))
+export GLUSTERLOOP
 
 # Provide current variables if needed for troubleshooting
 #set -o posix ; set
@@ -127,6 +131,19 @@ do
   nodegroup="$nodegroup
 $NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum"
 done
+
+# Create Gluster Nodes grouping
+if [[ $CRS == "true" ]]
+then
+    echo $(date) " - Creating Nodes grouping"
+
+    for (( c=0; c<$GLUSTERCOUNT; c++ ))
+    do
+      printf -v hostnum "%02d" $c
+      glustergroup="$glustergroup
+gluster-$hostnum openshift_node_labels=\"{'region': 'gluster', 'zone': 'default'}\" openshift_hostname=gluster-$hostnum"
+    done
+fi
 
 # Cloning Ansible playbook repository
 (cd /home/$SUDOUSER && git clone https://github.com/heatmiser/openshift-container-platform-playbooks.git)
@@ -235,6 +252,14 @@ $MASTER-00
 $mastergroup
 $infragroup
 $nodegroup
+EOF
+if [[ $CRS == "true" ]]
+then
+cat >> /etc/ansible/hosts <<EOF
+$glustergroup
+EOF
+fi
+cat >> /etc/ansible/hosts <<EOF
 
 # host group for adding new nodes
 [new_nodes]
