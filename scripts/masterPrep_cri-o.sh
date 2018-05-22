@@ -43,7 +43,7 @@ else
    exit 3
 fi
 
-if [ $POOL_ID == "null" ]
+if [ "$POOL_ID" == "null" ]
 then
    echo "Subscribed successfully via Organization ID / Activation Key, no pool attachment necessary."
 else
