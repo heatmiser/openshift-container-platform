@@ -14,6 +14,7 @@ echo "args: $*"
 USERNAME_ORG=$1
 PASSWORD_ACT_KEY="$2"
 POOL_ID=$3
+STORAGE_POOL_ID=$4
 
 # Provide current variables if needed for troubleshooting
 #set -o posix ; set
@@ -44,12 +45,12 @@ if [ "$POOL_ID" == "null" ]
 then
    echo "Subscribed successfully via Organization ID / Activation Key, no pool attachment necessary."
 else
-   subscription-manager attach --pool=$POOL_ID > attach.log
+   subscription-manager attach --pool=$POOL_ID > attach-primary-pool.log
    if [ $? -eq 0 ]
    then
       echo "Pool attached successfully"
    else
-      evaluate=$( cut -f 2-5 -d ' ' attach.log )
+      evaluate=$( cut -f 2-5 -d ' ' attach-primary-pool.log )
       if [[ $evaluate == "unit has already had" ]]
          then
             echo "Pool $POOL_ID was already attached and was not attached again."
@@ -58,6 +59,24 @@ else
             exit 4
       fi
    fi
+fi
+
+# Attach Container Storage Add-On for OpenShift Container Platform pool ID
+echo $(date) " - Attach Container Storage Add-On pool ID"
+
+subscription-manager attach --pool=$STORAGE_POOL_ID > attach-cntr-storage-pool.log
+if [ $? -eq 0 ]
+then
+    echo "Pool attached successfully"
+else
+    evaluate=$( cut -f 2-5 -d ' ' attach-cntr-storage-pool.log )
+    if [[ $evaluate == "unit has already had" ]]
+        then
+            echo "Pool $STORAGE_POOL_ID was already attached and was not attached again."
+	    else
+            echo "Incorrect Pool ID or no entitlements available"
+            exit 4
+    fi
 fi
 
 # Disable all repositories and enable only the required ones
@@ -70,7 +89,8 @@ subscription-manager repos \
     --enable="rhel-7-server-extras-rpms" \
     --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
-    --enable="rhel-7-fast-datapath-rpms"
+    --enable="rhel-7-fast-datapath-rpms" \
+    --enable="rh-gluster-3-for-rhel-7-server-rpms"
 
 #subscription-manager release --set=7.4
 
@@ -81,6 +101,12 @@ yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash
 yum -y install cloud-utils-growpart.noarch
 yum -y update --exclude=WALinuxAgent
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder cri-o
+
+# Install gluster packages
+echo $(date) " - Install gluster packages"
+
+yum -y install redhat-storage-server
+yum -y install gluster-block
 
 atomic-openshift-excluder unexclude
 
@@ -129,31 +155,31 @@ sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-
 # Create logical volume for containers
 echo $(date) " - Creating logical volume for containers overlay fs"
 
-#if [ -b /dev/vda ] ; then
-#    CONTAINERVG=$( parted -m /dev/vda print all 2>/dev/null | grep unknown | grep /dev/vd | cut -d':' -f1 )
-#elif [ -b /dev/sda ] ; then
-#    CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 )
-#fi
+if [ -b /dev/vda ] ; then
+    CONTAINERVG=$( parted -m /dev/vda print all 2>/dev/null | grep unknown | grep /dev/vd | cut -d':' -f1 | head -1 )
+elif [ -b /dev/sda ] ; then
+    CONTAINERVG=$( parted -m /dev/sda print all 2>/dev/null | grep unknown | grep /dev/sd | cut -d':' -f1 | head -1 )
+fi
 
-#echo "STORAGE_DRIVER=overlay2" > /etc/sysconfig/docker-storage-setup
-#echo "DEVS=${CONTAINERVG}" >> /etc/sysconfig/docker-storage-setup
-#echo "VG=containersvg" >> /etc/sysconfig/docker-storage-setup
-#echo "CONTAINER_ROOT_LV_NAME=containerslv" >> /etc/sysconfig/docker-storage-setup
-#echo "CONTAINER_ROOT_LV_SIZE=100%FREE" >> /etc/sysconfig/docker-storage-setup
-#echo "CONTAINER_ROOT_LV_MOUNT_PATH=/var/lib/containers" >> /etc/sysconfig/docker-storage-setup
-#container-storage-setup
-#if [ $? -eq 0 ]
-#then
-#   echo "Containers logical volume created successfully"
-#else
-#   echo "Error creating logical volume for containers overlay fs"
-#   exit 5
-#fi
+echo "STORAGE_DRIVER=overlay2" > /etc/sysconfig/docker-storage-setup
+echo "DEVS=${CONTAINERVG}" >> /etc/sysconfig/docker-storage-setup
+echo "VG=containersvg" >> /etc/sysconfig/docker-storage-setup
+echo "CONTAINER_ROOT_LV_NAME=containerslv" >> /etc/sysconfig/docker-storage-setup
+echo "CONTAINER_ROOT_LV_SIZE=100%FREE" >> /etc/sysconfig/docker-storage-setup
+echo "CONTAINER_ROOT_LV_MOUNT_PATH=/var/lib/containers" >> /etc/sysconfig/docker-storage-setup
+container-storage-setup
+if [ $? -eq 0 ]
+then
+   echo "Containers logical volume created successfully"
+else
+   echo "Error creating logical volume for containers overlay fs"
+   exit 5
+fi
 
 # Enable and start Docker services
 
-#systemctl enable docker
-#systemctl start docker
+systemctl enable docker
+systemctl start docker
 
 echo $(date) " - Script Complete"
 
