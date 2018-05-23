@@ -84,15 +84,20 @@ echo $(date) " - Disabling all repositories and enabling only the required repos
 
 subscription-manager repos --disable="*"
 
+#subscription-manager repos \
+#    --enable="rhel-7-server-rpms" \
+#    --enable="rhel-7-server-extras-rpms" \
+#    --enable="rhel-7-server-ose-3.9-rpms" \
+#    --enable="rhel-7-server-ansible-2.4-rpms" \
+#    --enable="rhel-7-fast-datapath-rpms" \
+#    --enable="rh-gluster-3-for-rhel-7-server-rpms"
+
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
-    --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rhel-7-fast-datapath-rpms" \
     --enable="rh-gluster-3-for-rhel-7-server-rpms"
-
-#subscription-manager release --set=7.4
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
@@ -100,7 +105,7 @@ echo $(date) " - Install base packages and update system to latest packages"
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion kexec-tools sos psacct
 yum -y install cloud-utils-growpart.noarch
 yum -y update --exclude=WALinuxAgent
-yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder cri-o
+#yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder cri-o
 
 # Install gluster packages
 echo $(date) " - Install gluster packages"
@@ -108,7 +113,7 @@ echo $(date) " - Install gluster packages"
 yum -y install redhat-storage-server
 yum -y install gluster-block
 
-atomic-openshift-excluder unexclude
+#atomic-openshift-excluder unexclude
 
 # Grow Root File System
 echo $(date) " - Grow Root FS"
