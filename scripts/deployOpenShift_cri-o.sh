@@ -257,6 +257,10 @@ openshift_master_cluster_public_vip=$MASTERPUBLICIPADDRESS
 # Enable HTPasswdPasswordIdentityProvider
 openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true', 'kind': 'HTPasswdPasswordIdentityProvider', 'filename': '/etc/origin/master/htpasswd'}]
 
+EOF
+if [[ $CRS != "true" ]]
+then
+cat >> /etc/ansible/hosts <<EOF
 # Setup metrics
 openshift_metrics_install_metrics=false
 openshift_metrics_start_cluster=true
@@ -274,6 +278,47 @@ openshift_logging_curator_nodeselector={"region":"infra"}
 openshift_master_logging_public_url=https://kibana.$ROUTING
 openshift_logging_master_public_url=https://$MASTERPUBLICIPHOSTNAME:443
 
+EOF
+fi
+if [[ $CRS == "true" ]]
+then
+cat >> /etc/ansible/hosts <<EOF
+# registry
+openshift_hosted_registry_replicas=3
+openshift_registry_selector="role=infra"
+openshift_hosted_registry_storage_kind=glusterfs
+openshift_hosted_registry_storage_volume_size=500Gi
+
+# CRS storage for applications
+openshift_storage_glusterfs_namespace=app-storage
+openshift_storage_glusterfs_is_native=false
+openshift_storage_glusterfs_block_deploy=false
+openshift_storage_glusterfs_storageclass=true
+openshift_storage_glusterfs_heketi_is_native=true
+openshift_storage_glusterfs_heketi_executor=ssh
+openshift_storage_glusterfs_heketi_ssh_port=22
+openshift_storage_glusterfs_heketi_ssh_user=root
+openshift_storage_glusterfs_heketi_ssh_sudo=false
+openshift_storage_glusterfs_heketi_ssh_keyfile="/root/.ssh/id_rsa"
+
+# CRS storage for OpenShift infrastructure
+openshift_storage_glusterfs_registry_block_deploy=true
+openshift_storage_glusterfs_registry_block_host_vol_create=true    
+openshift_storage_glusterfs_registry_block_host_vol_size=1000   
+openshift_storage_glusterfs_registry_block_storageclass=true
+openshift_storage_glusterfs_registry_block_storageclass_default=true
+openshift_storage_glusterfs_registry_heketi_is_native=true
+openshift_storage_glusterfs_registry_heketi_executor=ssh
+openshift_storage_glusterfs_registry_heketi_ssh_port=22
+openshift_storage_glusterfs_registry_heketi_ssh_user=root
+openshift_storage_glusterfs_registry_heketi_ssh_sudo=false
+openshift_storage_glusterfs_registry_heketi_ssh_keyfile="/root/.ssh/id_rsa"
+
+openshift_storageclass_default=false
+
+EOF
+fi
+cat >> /etc/ansible/hosts <<EOF
 # host group for masters
 [masters]
 $MASTER-[00:${MASTERLOOP}]
@@ -369,7 +414,7 @@ sed -i -e "s/Defaults    requiretty/# Defaults    requiretty/" /etc/sudoers
 sed -i -e '/Defaults    env_keep += "LC_TIME LC_ALL LANGUAGE LINGUAS _XKB_CHARSET XAUTHORITY"/aDefaults    env_keep += "PATH"' /etc/sudoers
 
 # Deploying Registry
-echo $(date) " - Registry automatically deployed to infra nodes"
+echo $(date) " - Registry automatically deployed to infra nodes, for CRS glusterfs_registry is backing store"
 
 # Deploying Router
 echo $(date) " - Router automaticaly deployed to infra nodes"
@@ -409,10 +454,13 @@ echo $(date) " - Assigning password for root, which is used to login to Cockpit"
 runuser $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/assignrootpassword.yaml"
 fi
 
+if [[ $CRS != "true" ]]
+then
 # Configure Docker Registry to use Azure Storage Account
 echo $(date) " - Configuring Docker Registry to use Azure Storage Account"
 
 runuser $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/$DOCKERREGISTRYYAML"
+fi
 
 if [[ $AZURE == "true" ]]
 then
@@ -474,12 +522,6 @@ then
 	runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-nodes.yaml"
 	sleep 10
 
-	# Installing Service Catalog, Ansible Service Broker and Template Service Broker
-	
-	echo $(date) "- Installing Service Catalog, Ansible Service Broker and Template Service Broker"
-	runuser -l $SUDOUSER -c "ansible-playbook -f 10 /usr/share/ansible/openshift-ansible/playbooks/openshift-service-catalog/config.yml"
-	echo $(date) "- Service Catalog, Ansible Service Broker and Template Service Broker installed successfully"
-
 	# End of Azure specific section
 fi 
 
@@ -489,12 +531,19 @@ if [ $METRICS == "true" ]
 then
 	sleep 30
 	echo $(date) "- Deploying Metrics"
-	if [ $AZURE == "true" ]
+	if [ $AZURE == "true" -a $CRS != "true" ]
 	then
 		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml -e openshift_metrics_install_metrics=True -e openshift_metrics_cassandra_storage_type=dynamic"
-	else
+	fi	
+	if [ $AZURE != "true" -a $CRS != "true" ]
+	then
 		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml -e openshift_metrics_install_metrics=True"
 	fi
+	if [ $CRS == "true" ]
+	then
+		echo "Udate ansible inv and exexute"
+	fi
+
 	if [ $? -eq 0 ]
 	then
 	    echo $(date) " - Metrics configuration completed successfully"
@@ -524,6 +573,12 @@ then
 	    exit 12
 	fi
 fi
+
+# Installing Service Catalog, Ansible Service Broker and Template Service Broker
+	
+echo $(date) "- Installing Service Catalog, Ansible Service Broker and Template Service Broker"
+runuser -l $SUDOUSER -c "ansible-playbook -f 10 /usr/share/ansible/openshift-ansible/playbooks/openshift-service-catalog/config.yml"
+echo $(date) "- Service Catalog, Ansible Service Broker and Template Service Broker installed successfully"
 
 # Delete yaml files
 echo $(date) " - Deleting unecessary files"
