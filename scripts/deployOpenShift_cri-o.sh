@@ -36,7 +36,10 @@ export COCKPIT=${22}
 export AZURE=${23}
 export STORAGEKIND=${24}
 export CRS=${25}
-export GLUSTERCOUNT=${26}
+export CRSAPP=${26}
+export CRSAPPCOUNT=${26}
+export CRSREG=${26}
+export CRSREGCOUNT=${26}
 
 export BASTION=$(hostname)
 
@@ -50,8 +53,10 @@ printf -v INFRALOOP "%02d" $((INFRACOUNT - 1))
 export INFRALOOP
 printf -v NODELOOP "%02d" $((NODECOUNT - 1))
 export NODELOOP
-printf -v GLUSTERLOOP "%02d" $((GLUSTERCOUNT - 1))
-export GLUSTERLOOP
+printf -v CRSAPPLOOP "%02d" $((CRSAPPCOUNT - 1))
+export CRSAPPLOOP
+printf -v CRSREGLOOP "%02d" $((CRSREGCOUNT - 1))
+export CRSREGLOOP
 
 # Provide current variables if needed for troubleshooting
 #set -o posix ; set
@@ -132,16 +137,23 @@ do
 $NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum"
 done
 
-# Create Gluster Nodes grouping
+# Create Gluster App & Reg Nodes groupings
 if [[ $CRS == "true" ]]
 then
-    echo $(date) " - Creating Nodes grouping"
+    echo $(date) " - Creating CRS Apps cluster grouping"
 
-    for (( c=0; c<$GLUSTERCOUNT; c++ ))
+    for (( c=0; c<$CRSAPPCOUNT; c++ ))
     do
       printf -v hostnum "%02d" $c
-      glustergroup="$glustergroup
-gluster-$hostnum openshift_node_labels=\"{'region': 'gluster', 'zone': 'default'}\" openshift_hostname=gluster-$hostnum"
+      crsappgroup="$crsappgroup
+$CRSAPP-$hostnum glusterfs_devices='[ \"/dev/sdd\", \"/dev/sde\", \"/dev/sdf\", \"/dev/sdg\" ]'"
+    done
+
+    for (( c=0; c<$CRSREGCOUNT; c++ ))
+    do
+      printf -v hostnum "%02d" $c
+      crsreggroup="$crsreggroup
+$CRSREG-$hostnum glusterfs_devices='[ \"/dev/sdd\", \"/dev/sde\", \"/dev/sdf\", \"/dev/sdg\" ]'"
     done
 fi
 
@@ -171,6 +183,15 @@ masters
 nodes
 etcd
 master00
+EOF
+if [[ $CRS == "true" ]]
+then
+cat >> /etc/ansible/hosts <<EOF
+glusterfs
+glusterfs_registry
+EOF
+fi
+cat >> /etc/ansible/hosts <<EOF
 new_nodes
 
 # Set variables common for all OSEv3 hosts
@@ -256,7 +277,8 @@ EOF
 if [[ $CRS == "true" ]]
 then
 cat >> /etc/ansible/hosts <<EOF
-$glustergroup
+$crsappgroup
+$crsreggroup
 EOF
 fi
 cat >> /etc/ansible/hosts <<EOF
