@@ -186,5 +186,24 @@ fi
 systemctl enable docker
 systemctl start docker
 
+# Configure backend gluster NIC
+cat > /etc/sysconfig/network-scripts/ifcfg-eth1 <<EOF
+DEVICE=eth1
+ONBOOT=yes
+BOOTPROTO=dhcp
+TYPE=Ethernet
+USERCTL=no
+PEERDNS=yes
+IPV6INIT=no
+NM_CONTROLLED=no
+EOF
+
+# Configure eth0 as default gateway
+echo "GATEWAYDEV=eth0" >> /etc/sysconfig/network
+
+# Apply backend gluster NIC config and activate
+systemctl restart NetworkManager
+systemctl restart network
+
 echo $(date) " - Script Complete"
 
