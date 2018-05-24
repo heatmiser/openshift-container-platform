@@ -37,11 +37,19 @@ export AZURE=${23}
 export STORAGEKIND=${24}
 export CRS=${25}
 export CRSAPP=${26}
-export CRSAPPCOUNT=${26}
-export CRSREG=${26}
-export CRSREGCOUNT=${26}
+export CRSAPPCOUNT=${27}
+export CRSREG=${28}
+export CRSREGCOUNT=${29}
+export CRSDISKCOUNT=${30}
 
 export BASTION=$(hostname)
+
+# function to create incremental disk device names
+function DiskDev () {
+    local Rest Letters=defghijklmnopqrstuvwxyz
+    Rest=${Letters#*$1}
+    echo /dev/sd${Rest:$1:1}
+}
 
 # Determine if Commercial Azure or Azure Government
 CLOUD=$( curl -H Metadata:true "http://169.254.169.254/metadata/instance/compute/location?api-version=2017-04-02&format=text" | cut -c 1-2 )
@@ -137,6 +145,15 @@ do
 $NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum"
 done
 
+# Create gluster disk device list
+currentdisk=$(DiskDev 0)
+devicelist="\"$currentdisk\""
+for (( c=1; c<$CRSDISKCOUNT; c++ ))
+do
+  currentdisk=$(DiskDev $c)
+  devicelist="$devicelist, \"$currentdisk\""
+done
+
 # Create Gluster App & Reg Nodes groupings
 if [[ $CRS == "true" ]]
 then
@@ -146,14 +163,14 @@ then
     do
       printf -v hostnum "%02d" $c
       crsappgroup="$crsappgroup
-$CRSAPP-$hostnum glusterfs_devices='[ \"/dev/sdd\", \"/dev/sde\", \"/dev/sdf\", \"/dev/sdg\" ]'"
+$CRSAPP-$hostnum glusterfs_devices='[ $devicelist ]'"
     done
 
     for (( c=0; c<$CRSREGCOUNT; c++ ))
     do
       printf -v hostnum "%02d" $c
       crsreggroup="$crsreggroup
-$CRSREG-$hostnum glusterfs_devices='[ \"/dev/sdd\", \"/dev/sde\", \"/dev/sdf\", \"/dev/sdg\" ]'"
+$CRSREG-$hostnum glusterfs_devices='[ $devicelist ]'"
     done
 fi
 
@@ -273,11 +290,15 @@ $MASTER-00
 $mastergroup
 $infragroup
 $nodegroup
+
 EOF
 if [[ $CRS == "true" ]]
 then
 cat >> /etc/ansible/hosts <<EOF
+[glusterfs]
 $crsappgroup
+
+[glusterfs_registry]
 $crsreggroup
 EOF
 fi
