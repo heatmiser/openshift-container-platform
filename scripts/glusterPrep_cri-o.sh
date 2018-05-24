@@ -205,5 +205,9 @@ echo "GATEWAYDEV=eth0" >> /etc/sysconfig/network
 systemctl restart NetworkManager
 systemctl restart network
 
+# Enable remote OCP nodes to write to GlusterFS volumes with SELinux on
+yum -y install docker-selinux
+setsebool -P virt_sandbox_use_fusefs on
+
 echo $(date) " - Script Complete"
 
