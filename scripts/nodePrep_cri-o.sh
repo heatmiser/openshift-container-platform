@@ -70,15 +70,16 @@ subscription-manager repos \
     --enable="rhel-7-server-extras-rpms" \
     --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
-    --enable="rhel-7-fast-datapath-rpms"
-
-#subscription-manager release --set=7.4
+    --enable="rhel-7-fast-datapath-rpms" \
+    --enable="rh-gluster-3-client-for-rhel-7-server-rpms"
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
 
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion kexec-tools sos psacct
 yum -y install cloud-utils-growpart.noarch
+yum -y install ansible
+yum -y update glusterfs-fuse
 yum -y update --exclude=WALinuxAgent
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder cri-o
 
