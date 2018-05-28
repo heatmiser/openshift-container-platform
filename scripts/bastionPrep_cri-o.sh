@@ -78,17 +78,25 @@ subscription-manager repos \
     --enable="rhel-7-server-extras-rpms" \
     --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
-    --enable="rhel-7-fast-datapath-rpms"
+    --enable="rhel-7-fast-datapath-rpms" \
+    --enable="rh-gluster-3-client-for-rhel-7-server-rpms"
 
-#subscription-manager release --set=7.4
+# Update system to latest packages
+echo $(date) " - Update system to latest packages"
+yum -y update --exclude=WALinuxAgent
+echo $(date) " - System update complete"
 
 # Install base packages and update system to latest packages
-echo $(date) " - Install base packages and update system to latest packages"
+echo $(date) " - Install base packages"
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct tmux
+yum -y install ansible
+yum -y update glusterfs-fuse
+echo $(date) " - Base package insallation complete"
+
+# Excluders for OpenShift
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
 atomic-openshift-excluder unexclude
 yum -y install cloud-utils-growpart.noarch
-yum -y update --exclude=WALinuxAgent
 
 # Grow Root File System
 echo $(date) " - Grow Root FS"
@@ -156,18 +164,27 @@ else
    exit 5
 fi
 
-# Enable and start Docker services
-
-systemctl enable docker
-systemctl start docker
+# Install podman, buildah, skopeo
+yum -y install podman buildah skopeo
+wget https://raw.githubusercontent.com/heatmiser/openshift-container-platform/release-3.9/conf/libpod.conf -O /etc/containers/libpod.conf
 
 # Install OpenShift utilities
 echo $(date) " - Installing OpenShift utilities"
 
 yum -y install atomic-openshift-utils
+echo $(date) " - OpenShift utilities insallation complete"
 
-# Create playbook to update ansible.cfg file to include path to library
-# Filename: updateansiblecfg.yaml
+# Installing Azure CLI
+# From https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-yum
+echo $(date) " - Installing Azure CLI"
+sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+sudo sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
+sudo yum install -y azure-cli
+echo $(date) " - Azure CLI insallation complete"
+
+# Configure DNS so it always has the domain name
+echo $(date) " - Adding DOMAIN to search for resolv.conf"
+echo "DOMAIN=`domainname -d`" >> /etc/sysconfig/network-scripts/ifcfg-eth0
 
 # Run Ansible Playbook to update ansible.cfg file
 
