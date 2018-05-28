@@ -34,13 +34,13 @@ subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_A
 
 if [ $? -eq 0 ]
 then
-   echo "Subscribed successfully"
+    echo "Subscribed successfully"
 elif [ $? -eq 64 ]
 then
-   echo "This system is already registered."
+    echo "This system is already registered."
 else
-   echo "Incorrect Username / Password or Organization ID / Activation Key specified"
-   exit 3
+    echo "Incorrect Username / Password or Organization ID / Activation Key specified"
+    exit 3
 fi
 
 if [ "$POOL_ID" == "null" ]
@@ -73,15 +73,16 @@ subscription-manager repos \
     --enable="rhel-7-server-extras-rpms" \
     --enable="rhel-7-server-ose-3.9-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
-    --enable="rhel-7-fast-datapath-rpms"
-
-#subscription-manager release --set=7.4
+    --enable="rhel-7-fast-datapath-rpms" \
+    --enable="rh-gluster-3-client-for-rhel-7-server-rpms"
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
 
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct
 yum -y install cloud-utils-growpart.noarch
+yum -y install ansible
+yum -y update glusterfs-fuse
 yum -y update --exclude=WALinuxAgent
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder cri-o
 
@@ -170,7 +171,7 @@ cat <<EOF > /home/${SUDOUSER}/scunmanaged.yml
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
-  name: generic
+  name: azure
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
 provisioner: kubernetes.io/azure-disk
@@ -183,7 +184,7 @@ cat <<EOF > /home/${SUDOUSER}/scmanaged.yml
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
-  name: generic
+  name: azure
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
 provisioner: kubernetes.io/azure-disk
