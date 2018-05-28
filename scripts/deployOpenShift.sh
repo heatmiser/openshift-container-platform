@@ -55,39 +55,50 @@ echo $(date) " - Configuring SSH ControlPath to use shorter path name"
 sed -i -e "s/^# control_path = %(directory)s\/%%h-%%r/control_path = %(directory)s\/%%h-%%r/" /etc/ansible/ansible.cfg
 sed -i -e "s/^#host_key_checking = False/host_key_checking = False/" /etc/ansible/ansible.cfg
 sed -i -e "s/^#pty=False/pty=False/" /etc/ansible/ansible.cfg
+sed -i -e "s/^#stdout_callback = skippy/stdout_callback = skippy/" /etc/ansible/ansible.cfg
 
-# Create Ansible Playbooks for Post Installation tasks
-echo $(date) " - Create Ansible Playbooks for Post Installation tasks"
-
-# Run on all masters - Create Initial OpenShift User on all Masters
-# Filename: addocpuser.yaml
-
-# Run on only MASTER-00 - Make initial OpenShift User a Cluster Admin
-# Filename: assignclusteradminrights.yaml
-
-# Run on all nodes - Set Root password on all nodes
-# Filename: assignrootpassword.yaml
-
-# Run on MASTER-00 node - configure registry to use Azure Storage
+# Run on MASTER-0 node - configure registry to use Azure Storage
 # Create docker registry config based on Commercial Azure or Azure Government
 
 if [[ $CLOUD == "US" ]]
 then
-  DOCKERREGISTRYYAML=dockerregistrygov.yaml
-  export CLOUDNAME="AzureUSGovernmentCloud"
+    DOCKERREGISTRYYAML=dockerregistrygov.yaml
+    export CLOUDNAME="AzureUSGovernmentCloud"
 else
-  DOCKERREGISTRYYAML=dockerregistrypublic.yaml
-  export CLOUDNAME="AzurePublicCloud"
-
+    DOCKERREGISTRYYAML=dockerregistrypublic.yaml
+    export CLOUDNAME="AzurePublicCloud"
 fi
+
+# Setting the default openshift_cloudprovider_kind if Azure enabled
+if [[ $AZURE == "true" ]]
+then
+    CLOUDKIND="openshift_cloudprovider_kind=azure
+osm_controller_args={'cloud-provider': ['azure'], 'cloud-config': ['/etc/origin/cloudprovider/azure.conf']}
+osm_api_server_args={'cloud-provider': ['azure'], 'cloud-config': ['/etc/origin/cloudprovider/azure.conf']}
+openshift_node_kubelet_args={'cloud-provider': ['azure'], 'cloud-config': ['/etc/origin/cloudprovider/azure.conf'], 'enable-controller-attach-detach': ['true']}"
+fi
+
+# Cloning Ansible playbook repository
+(cd /home/$SUDOUSER && git clone https://github.com/heatmiser/openshift-container-platform-playbooks.git)
+#(cd /home/$SUDOUSER && git clone https://github.com/microsoft/openshift-container-platform-playbooks.git)
+if [ -d /home/${SUDOUSER}/openshift-container-platform-playbooks ]
+then
+    echo " - Retrieved playbooks successfully"
+else
+    echo " - Retrieval of playbooks failed"
+    exit 99
+fi
+
+# Setting DOMAIN variable
+export DOMAIN=`domainname -d`
 
 # Create Master nodes grouping
 echo $(date) " - Creating Master nodes grouping"
 
 for (( c=0; c<$MASTERCOUNT; c++ ))
 do
-  printf -v hostnum "%02d" $c
-  mastergroup="$mastergroup
+    printf -v hostnum "%02d" $c
+    mastergroup="$mastergroup
 $MASTER-$hostnum openshift_node_labels=\"{'region': 'master', 'zone': 'default'}\" openshift_hostname=$MASTER-$hostnum"
 done
 
@@ -96,8 +107,8 @@ echo $(date) " - Creating Infra nodes grouping"
 
 for (( c=0; c<$INFRACOUNT; c++ ))
 do
-  printf -v hostnum "%02d" $c
-  infragroup="$infragroup
+    printf -v hostnum "%02d" $c
+    infragroup="$infragroup
 $INFRA-$hostnum openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\" openshift_hostname=$INFRA-$hostnum"
 done
 
@@ -106,26 +117,30 @@ echo $(date) " - Creating Nodes grouping"
 
 for (( c=0; c<$NODECOUNT; c++ ))
 do
-  printf -v hostnum "%02d" $c
-  nodegroup="$nodegroup
+    printf -v hostnum "%02d" $c
+    nodegroup="$nodegroup
 $NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum"
 done
-
-# Cloning Ansible playbook repository
-(cd /home/$SUDOUSER && git clone https://github.com/heatmiser/openshift-container-platform-playbooks.git)
-if [ -d /home/${SUDOUSER}/openshift-container-platform-playbooks ]
-then
-  echo " - Retrieved playbooks successfully"
-else
-  echo " - Retrieval of playbooks failed"
-  exit 99
-fi
 
 # Setting the default openshift_cloudprovider_kind if Azure enabled
 if [[ $AZURE == "true" ]]
 then
-	export CLOUDKIND="openshift_cloudprovider_kind=azure"
+    export HAMODE="openshift_master_cluster_method=native"
 fi
+
+# Create Temp Ansible Hosts File
+echo $(date) " - Create Ansible Hosts file"
+
+cat > /etc/ansible/hosts <<EOF
+[tempnodes]
+$mastergroup
+$infragroup
+$nodegroup
+EOF
+
+# Run a loop playbook to ensure DNS Hostname resolution is working prior to continuing with script
+echo $(date) " - Running DNS Hostname resolution check"
+runuser -l $SUDOUSER -c "ansible-playbook ~/openshift-container-platform-playbooks/check-dns-host-name-resolution.yaml"
 
 # Create Ansible Hosts File
 echo $(date) " - Create Ansible Hosts file"
@@ -169,7 +184,7 @@ openshift_enable_service_catalog=false
 template_service_broker_selector={"region":"infra"}
 
 # Type of clustering being used by OCP
-openshift_master_cluster_method=native
+$HAMODE
 
 # Addresses for connecting to the OpenShift master nodes
 openshift_master_cluster_hostname=$MASTERPUBLICIPHOSTNAME
@@ -194,7 +209,7 @@ openshift_logging_es_nodeselector={"region":"infra"}
 openshift_logging_kibana_nodeselector={"region":"infra"}
 openshift_logging_curator_nodeselector={"region":"infra"}
 openshift_master_logging_public_url=https://kibana.$ROUTING
-openshift_logging_master_public_url=https://$MASTERPUBLICIPHOSTNAME:443
+openshift_logging_master_public_url=https://$MASTERPUBLICIPHOSTNAME
 
 # host group for masters
 [masters]
@@ -217,27 +232,21 @@ $nodegroup
 [new_nodes]
 EOF
 
-# Run a loop playbook to ensure DNS Hostname resolution is working prior to continuing with script
-echo $(date) " - Running DNS Hostname resolution check"
-runuser -l $SUDOUSER -c "ansible-playbook ~/openshift-container-platform-playbooks/check-dns-host-name-resolution.yaml"
-echo $(date) " - DNS Hostname resolution check complete"
-
-DOMAIN=`domainname -d`
-
-# Create /etc/origin/cloudprovider/azure.conf on all hosts if Azure is enabled
 if [[ $AZURE == "true" ]]
 then
-	runuser $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/create-azure-conf.yaml"
-	if [ $? -eq 0 ]
-	then
-		echo $(date) " - Creation of Cloud Provider Config (azure.conf) completed on all nodes successfully"
-	else
-		echo $(date) " - Creation of Cloud Provider Config (azure.conf) completed on all nodes failed to complete"
-		exit 13
-	fi
+    # Create /etc/origin/cloudprovider/azure.conf on all hosts if Azure is enabled
+    runuser $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/create-azure-conf.yaml"
+    if [ $? -eq 0 ]
+    then
+        echo $(date) " - Creation of Cloud Provider Config (azure.conf) completed on all nodes successfully"
+    else
+        echo $(date) " - Creation of Cloud Provider Config (azure.conf) completed on all nodes failed to complete"
+        exit 13
+    fi
 fi
 
 # Setup NetworkManager to manage eth0
+echo $(date) " - Running NetworkManager playbook"
 runuser -l $SUDOUSER -c "ansible-playbook -f 10 /usr/share/ansible/openshift-ansible/playbooks/openshift-node/network_manager.yml"
 
 # Configure resolv.conf on all hosts through NetworkManager
@@ -248,6 +257,7 @@ runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli con modify e
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli device reapply eth0\""
 #runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=NetworkManager state=restarted\""
 #runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=network state=restarted\""
+echo $(date) " - NetworkManager configuration complete"
 
 # Updating all hosts
 echo $(date) " - Updating rpms on all hosts to latest release"
@@ -260,16 +270,17 @@ runuser -l $SUDOUSER -c "ansible all -f 10 -b -m yum -a \"name=ansible state=lat
 # Initiating installation of OpenShift Container Platform using Ansible Playbook
 echo $(date) " - Running Prerequisites via Ansible Playbook"
 runuser -l $SUDOUSER -c "ansible-playbook -f 10 /usr/share/ansible/openshift-ansible/playbooks/prerequisites.yml"
+echo $(date) " - Prerequisites check complete"
 
 # Initiating installation of OpenShift Container Platform using Ansible Playbook
 echo $(date) " - Installing OpenShift Container Platform via Ansible Playbook"
 runuser -l $SUDOUSER -c "ansible-playbook -f 10 /usr/share/ansible/openshift-ansible/playbooks/deploy_cluster.yml"
 if [ $? -eq 0 ]
 then
-   echo $(date) " - OpenShift Cluster installed successfully"
+    echo $(date) " - OpenShift Cluster installed successfully"
 else
-   echo $(date) " - OpenShift Cluster failed to install"
-   exit 6
+    echo $(date) " - OpenShift Cluster failed to install"
+    exit 6
 fi
 
 echo $(date) " - Modifying sudoers"
@@ -323,6 +334,7 @@ echo $(date) " - Configuring Docker Registry to use Azure Storage Account"
 
 runuser $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/$DOCKERREGISTRYYAML"
 
+# Handling Azure specific storage requirements if it is enabled
 if [[ $AZURE == "true" ]]
 then
 
@@ -343,7 +355,7 @@ then
 	then
 	    echo $(date) " - Cloud Provider setup of master config on Master Nodes completed successfully"
 	else
-	    echo $(date) " - Cloud Provider setup of master config on Master Nodes failed to completed"
+	    echo $(date) " - Cloud Provider setup of master config on Master Nodes failed to complete"
 	    exit 7
 	fi
 
@@ -375,63 +387,64 @@ then
 
 	echo $(date) " - Sleep for 120"
 	sleep 120
-
-	echo $(date) " - Rebooting cluster to complete installation"
+# Adding some labels back because they go missing
+echo $(date) " - Adding api and logging labels"
 	runuser -l $SUDOUSER -c  "oc label --overwrite nodes $MASTER-00 openshift-infra=apiserver"
 	runuser -l $SUDOUSER -c  "oc label --overwrite nodes --all logging-infra-fluentd=true logging=true"
+# Restarting things so everything is clean before installing anything else
+echo $(date) " - Rebooting cluster to complete installation"
 	runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-master.yaml"
 	runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-nodes.yaml"
-	sleep 10
+sleep 20
 
 	# Installing Service Catalog, Ansible Service Broker and Template Service Broker
 	
 	echo $(date) "- Installing Service Catalog, Ansible Service Broker and Template Service Broker"
-	runuser -l $SUDOUSER -c "ansible-playbook -f 10 /usr/share/ansible/openshift-ansible/playbooks/openshift-service-catalog/config.yml"
+    runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-service-catalog/config.yml -e openshift_enable_service_catalog=true"
 	echo $(date) "- Service Catalog, Ansible Service Broker and Template Service Broker installed successfully"
 
 	# End of Azure specific section
 fi 
 
 # Configure Metrics
-
 if [ $METRICS == "true" ]
 then
-	sleep 30
-	echo $(date) "- Deploying Metrics"
-	if [ $AZURE == "true" ]
-	then
-		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml -e openshift_metrics_install_metrics=True -e openshift_metrics_cassandra_storage_type=dynamic"
-	else
-		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml -e openshift_metrics_install_metrics=True"
-	fi
-	if [ $? -eq 0 ]
-	then
-	    echo $(date) " - Metrics configuration completed successfully"
-	else
-	    echo $(date) " - Metrics configuration failed"
-	    exit 11
-	fi
+    sleep 30
+    echo $(date) "- Deploying Metrics"
+    if [ $AZURE == "true" ]
+    then
+        runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml -e openshift_metrics_install_metrics=True -e openshift_metrics_cassandra_storage_type=dynamic"
+    else
+        runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-metrics/config.yml -e openshift_metrics_install_metrics=True"
+    fi
+    if [ $? -eq 0 ]
+    then
+        echo $(date) " - Metrics configuration completed successfully"
+    else
+        echo $(date) " - Metrics configuration failed"
+        exit 11
+    fi
 fi
 
 # Configure Logging
 
 if [ $LOGGING == "true" ]
 then
-	sleep 60
-	echo $(date) "- Deploying Logging"
-	if [ $AZURE == "true" ]
-	then
-		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-logging/config.yml -e openshift_logging_install_logging=True -e openshift_logging_es_pvc_dynamic=true"
-	else
-		runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-logging/config.yml -e openshift_logging_install_logging=True"
-	fi
-	if [ $? -eq 0 ]
-	then
-	    echo $(date) " - Logging configuration completed successfully"
-	else
-	    echo $(date) " - Logging configuration failed"
-	    exit 12
-	fi
+    sleep 60
+    echo $(date) "- Deploying Logging"
+    if [ $AZURE == "true" ]
+    then
+        runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-logging/config.yml -e openshift_logging_install_logging=True -e openshift_logging_es_pvc_dynamic=true"
+    else
+        runuser -l $SUDOUSER -c "ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/openshift-logging/config.yml -e openshift_logging_install_logging=True"
+    fi
+    if [ $? -eq 0 ]
+    then
+        echo $(date) " - Logging configuration completed successfully"
+    else
+        echo $(date) " - Logging configuration failed"
+        exit 12
+    fi
 fi
 
 # Delete yaml files
