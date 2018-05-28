@@ -255,8 +255,8 @@ runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=NetworkManage
 sleep 5
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli con modify eth0 ipv4.dns-search $DOMAIN\""
 runuser -l $SUDOUSER -c "ansible all -f 10 -b -m command -a \"nmcli device reapply eth0\""
-#runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=NetworkManager state=restarted\""
-#runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=network state=restarted\""
+sleep 5
+runuser -l $SUDOUSER -c "ansible all -f 10 -b -m service -a \"name=network state=restarted\""
 echo $(date) " - NetworkManager configuration complete"
 
 # Updating all hosts
@@ -387,15 +387,15 @@ then
 
 	echo $(date) " - Sleep for 120"
 	sleep 120
-# Adding some labels back because they go missing
-echo $(date) " - Adding api and logging labels"
+    # Adding some labels back because they go missing
+    echo $(date) " - Adding api and logging labels"
 	runuser -l $SUDOUSER -c  "oc label --overwrite nodes $MASTER-00 openshift-infra=apiserver"
 	runuser -l $SUDOUSER -c  "oc label --overwrite nodes --all logging-infra-fluentd=true logging=true"
-# Restarting things so everything is clean before installing anything else
-echo $(date) " - Rebooting cluster to complete installation"
+    # Restarting things so everything is clean before installing anything else
+    echo $(date) " - Rebooting cluster to complete installation"
 	runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-master.yaml"
 	runuser -l $SUDOUSER -c "ansible-playbook -f 10 ~/openshift-container-platform-playbooks/reboot-nodes.yaml"
-sleep 20
+    sleep 20
 
 	# Installing Service Catalog, Ansible Service Broker and Template Service Broker
 	
