@@ -61,24 +61,6 @@ else
    fi
 fi
 
-# Attach Container Storage Add-On for OpenShift Container Platform pool ID
-echo $(date) " - Attach Container Storage Add-On pool ID"
-
-subscription-manager attach --pool=$STORAGE_POOL_ID > attach-cntr-storage-pool.log
-if [ $? -eq 0 ]
-then
-    echo "Pool attached successfully"
-else
-    evaluate=$( cut -f 2-5 -d ' ' attach-cntr-storage-pool.log )
-    if [[ $evaluate == "unit has already had" ]]
-        then
-            echo "Pool $STORAGE_POOL_ID was already attached and was not attached again."
-	    else
-            echo "Incorrect Pool ID or no entitlements available"
-            exit 4
-    fi
-fi
-
 # Disable all repositories and enable only the required ones
 echo $(date) " - Disabling all repositories and enabling only the required repos"
 
