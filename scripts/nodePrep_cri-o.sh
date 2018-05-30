@@ -14,6 +14,7 @@ echo "args: $*"
 USERNAME_ORG=$1
 PASSWORD_ACT_KEY="$2"
 POOL_ID=$3
+STORAGE_ADDON_POOL_ID=$7
 
 # Provide current variables if needed for troubleshooting
 #set -o posix ; set
@@ -58,6 +59,27 @@ else
             exit 4
       fi
    fi
+fi
+
+if [ "$STORAGE_ADDON_POOL_ID" != "null" ]
+then
+    # Attach Container Storage Add-On for OpenShift Container Platform pool ID	
+    echo $(date) " - Attach Container Storage Add-On pool ID"	
+	
+    subscription-manager attach --pool=$STORAGE_ADDON_POOL_ID > attach-cntr-storage-pool.log	
+    if [ $? -eq 0 ]	
+    then	
+        echo "Pool attached successfully"	
+    else	
+        evaluate=$( cut -f 2-5 -d ' ' attach-cntr-storage-pool.log )	
+        if [[ $evaluate == "unit has already had" ]]	
+            then	
+                echo "Pool $STORAGE_ADDON_POOL_ID was already attached and was not attached again."	
+	        else	
+                echo "Incorrect Pool ID or no entitlements available"	
+                exit 4	
+        fi	
+    fi
 fi
 
 # Disable all repositories and enable only the required ones
