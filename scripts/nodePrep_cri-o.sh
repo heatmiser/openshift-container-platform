@@ -14,7 +14,7 @@ echo "args: $*"
 USERNAME_ORG=$1
 PASSWORD_ACT_KEY="$2"
 POOL_ID=$3
-STORAGE_ADDON_POOL_ID=$7
+STORAGE_ADDON_POOL_ID=$4
 
 # Provide current variables if needed for troubleshooting
 #set -o posix ; set
