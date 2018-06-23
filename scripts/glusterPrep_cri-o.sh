@@ -76,12 +76,14 @@ subscription-manager repos --disable="*"
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
+    --enable="rhel-7-server-optional-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rh-gluster-3-for-rhel-7-server-rpms"
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
 
+yum -y install yum-plugin-fastestmirror
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion kexec-tools sos psacct
 yum -y install cloud-utils-growpart.noarch
 yum -y update --exclude=WALinuxAgent
