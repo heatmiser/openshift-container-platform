@@ -27,7 +27,10 @@ sleep 10
 # Register Host with Cloud Access Subscription
 echo $(date) " - Register host with Cloud Access Subscription"
 
+# Prevent subscription-manager from exiting from script if system is already registered, ie re-executing after yum failure
+set +e
 subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_ACT_KEY" || subscription-manager register --activationkey="$PASSWORD_ACT_KEY" --org="$USERNAME_ORG"
+set -e
 
 if [ $? -eq 0 ]
 then
@@ -76,14 +79,12 @@ subscription-manager repos --disable="*"
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
-    --enable="rhel-7-server-optional-rpms" \
     --enable="rhel-7-server-ansible-2.4-rpms" \
     --enable="rh-gluster-3-for-rhel-7-server-rpms"
 
 # Install base packages and update system to latest packages
 echo $(date) " - Install base packages and update system to latest packages"
 
-yum -y install yum-plugin-fastestmirror
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion kexec-tools sos psacct
 yum -y install cloud-utils-growpart.noarch
 yum -y update --exclude=WALinuxAgent
