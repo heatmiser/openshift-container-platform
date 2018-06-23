@@ -28,7 +28,10 @@ sleep 10
 # Register Host with Cloud Access Subscription
 echo $(date) " - Register host with Cloud Access Subscription"
 
+# Prevent subscription-manager from exiting from script if system is already registered, ie re-executing after yum failure
+set +e
 subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_ACT_KEY" || subscription-manager register --activationkey="$PASSWORD_ACT_KEY" --org="$USERNAME_ORG"
+set -e
 
 if [ $? -eq 0 ]
 then
