@@ -67,6 +67,8 @@ else
    fi
 fi
 
+# Prevent script from exiting upon successful registration
+set +e
 if [ "$STORAGE_ADDON_POOL_ID" != "null" ]
 then
     # Attach Container Storage Add-On for OpenShift Container Platform pool ID	
@@ -87,6 +89,7 @@ then
         fi	
     fi
 fi
+set -e
 
 # Disable all repositories and enable only the required ones
 echo $(date) " - Disabling all repositories and enabling only the required repos"
