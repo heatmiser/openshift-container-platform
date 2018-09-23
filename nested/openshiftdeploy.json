@@ -158,12 +158,6 @@
 				"description": "Enable OpenShift Logging: true or false"
 			}
 		},
-		"enableCockpit": {
-			"type": "string",
-			"metadata": {
-				"description": "Enable Cockpit: true or false"
-			}
-		},
 		"enableAzure": {
 			"type": "string",
 			"metadata": {

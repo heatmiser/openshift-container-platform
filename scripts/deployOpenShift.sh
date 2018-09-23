@@ -56,11 +56,11 @@ sed -i -e "s/^# control_path = %(directory)s\/%%h-%%r/control_path = %(directory
 sed -i -e "s/^#host_key_checking = False/host_key_checking = False/" /etc/ansible/ansible.cfg
 sed -i -e "s/^#pty=False/pty=False/" /etc/ansible/ansible.cfg
 sed -i -e "s/^#stdout_callback = skippy/stdout_callback = skippy/" /etc/ansible/ansible.cfg
+sed -i -e "s/^#pipelining = False/pipelining = True/" /etc/ansible/ansible.cfg
 
 # Run on MASTER-0 node - configure registry to use Azure Storage
 # Create docker registry config based on Commercial Azure or Azure Government
-
-if [[ $CLOUD == "US" ]]
+if [ $CLOUD == "US" ]
 then
     DOCKERREGISTRYYAML=dockerregistrygov.yaml
     export CLOUDNAME="AzureUSGovernmentCloud"
@@ -70,7 +70,7 @@ else
 fi
 
 # Setting the default openshift_cloudprovider_kind if Azure enabled
-if [[ $AZURE == "true" ]]
+if [ $AZURE == "true" ]
 then
     CLOUDKIND="openshift_cloudprovider_kind=azure
 osm_controller_args={'cloud-provider': ['azure'], 'cloud-config': ['/etc/origin/cloudprovider/azure.conf']}

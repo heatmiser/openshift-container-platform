@@ -27,11 +27,12 @@ sleep 10
 echo $(date) " - Register host with Cloud Access Subscription"
 
 subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_ACT_KEY" || subscription-manager register --activationkey="$PASSWORD_ACT_KEY" --org="$USERNAME_ORG"
+RETCODE=$?
 
-if [ $? -eq 0 ]
+if [ $RETCODE -eq 0 ]
 then
     echo "Subscribed successfully"
-elif [ $? -eq 64 ]
+elif [ $RETCODE -eq 64 ]
 then
     echo "This system is already registered."
 else
@@ -44,8 +45,8 @@ if [ $? -eq 0 ]
 then
     echo "Pool attached successfully"
 else
-    evaluate=$( cut -f 2-5 -d ' ' attach.log )
-    if [[ $evaluate == "unit has already had" ]]
+    grep attached attach.log
+    if [ $? -eq 0 ]
     then
         echo "Pool $POOL_ID was already attached and was not attached again."
     else
@@ -62,8 +63,8 @@ subscription-manager repos --disable="*"
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
-    --enable="rhel-7-server-ose-3.9-rpms" \
-    --enable="rhel-7-server-ansible-2.4-rpms" \
+    --enable="rhel-7-server-ose-3.10-rpms" \
+    --enable="rhel-7-server-ansible-2.5-rpms" \
     --enable="rhel-7-fast-datapath-rpms" \
     --enable="rh-gluster-3-client-for-rhel-7-server-rpms"
 
@@ -75,10 +76,7 @@ yum -y install cloud-utils-growpart.noarch
 yum -y install ansible
 yum -y update glusterfs-fuse
 yum -y update --exclude=WALinuxAgent
-
-# Excluders for OpenShift
-yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
-atomic-openshift-excluder unexclude
+echo $(date) " - Base package insallation and updates complete"
 
 # Grow Root File System
 echo $(date) " - Grow Root FS"
@@ -94,13 +92,17 @@ xfs_growfs $rootdev
 
 # Install OpenShift utilities
 echo $(date) " - Installing OpenShift utilities"
-yum -y install atomic-openshift-utils
+yum -y install openshift-ansible
 
 # Install Docker
 echo $(date) " - Installing Docker"
 yum -y install docker 
 
-sed -i -e "s#^OPTIONS='--selinux-enabled'#OPTIONS='--selinux-enabled --insecure-registry 172.30.0.0/16'#" /etc/sysconfig/docker
+# Update docker storage
+echo "
+# Adding insecure-registry option required by OpenShift
+OPTIONS=\"\$OPTIONS --insecure-registry 172.30.0.0/16\"
+" >> /etc/sysconfig/docker
 
 # Create thin pool logical volume for Docker
 echo $(date) " - Creating thin pool logical volume for Docker and staring service"

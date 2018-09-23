@@ -32,11 +32,12 @@ sleep 10
 echo $(date) " - Register host with Cloud Access Subscription"
 
 subscription-manager register --username="$USERNAME_ORG" --password="$PASSWORD_ACT_KEY" || subscription-manager register --activationkey="$PASSWORD_ACT_KEY" --org="$USERNAME_ORG"
+RETCODE=$?
 
-if [ $? -eq 0 ]
+if [ $RETCODE -eq 0 ]
 then
     echo "Subscribed successfully"
-elif [ $? -eq 64 ]
+elif [ $RETCODE -eq 64 ]
 then
     echo "This system is already registered."
 else
@@ -49,8 +50,8 @@ if [ $? -eq 0 ]
 then
     echo "Pool attached successfully"
 else
-    evaluate=$( cut -f 2-5 -d ' ' attach.log )
-    if [[ $evaluate == "unit has already had" ]]
+    grep attached attach.log
+    if [ $? -eq 0 ]
     then
         echo "Pool $POOL_ID was already attached and was not attached again."
     else
@@ -67,8 +68,8 @@ subscription-manager repos --disable="*"
 subscription-manager repos \
     --enable="rhel-7-server-rpms" \
     --enable="rhel-7-server-extras-rpms" \
-    --enable="rhel-7-server-ose-3.9-rpms" \
-    --enable="rhel-7-server-ansible-2.4-rpms" \
+    --enable="rhel-7-server-ose-3.10-rpms" \
+    --enable="rhel-7-server-ansible-2.5-rpms" \
     --enable="rhel-7-fast-datapath-rpms" \
     --enable="rh-gluster-3-client-for-rhel-7-server-rpms"
 
@@ -82,7 +83,7 @@ echo $(date) " - Install base packages"
 yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion httpd-tools kexec-tools sos psacct tmux
 yum -y install ansible
 yum -y update glusterfs-fuse
-echo $(date) " - Base package insallation complete"
+echo $(date) " - Base package installation complete"
 
 # Excluders for OpenShift
 yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
@@ -131,8 +132,8 @@ systemctl start docker
 # Install OpenShift utilities
 echo $(date) " - Installing OpenShift utilities"
 
-yum -y install atomic-openshift-utils
-echo $(date) " - OpenShift utilities insallation complete"
+yum -y install openshift-ansible
+echo $(date) " - OpenShift utilities installation complete"
 
 # Installing Azure CLI
 # From https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-yum
@@ -140,7 +141,7 @@ echo $(date) " - Installing Azure CLI"
 sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
 sudo sh -c 'echo -e "[azure-cli]\nname=Azure CLI\nbaseurl=https://packages.microsoft.com/yumrepos/azure-cli\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/azure-cli.repo'
 sudo yum install -y azure-cli
-echo $(date) " - Azure CLI insallation complete"
+echo $(date) " - Azure CLI installation complete"
 
 # Configure DNS so it always has the domain name
 echo $(date) " - Adding DOMAIN to search for resolv.conf"
