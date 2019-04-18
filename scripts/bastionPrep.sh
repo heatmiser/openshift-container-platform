@@ -85,11 +85,6 @@ yum -y install ansible
 yum -y update glusterfs-fuse
 echo $(date) " - Base package installation complete"
 
-# Excluders for OpenShift
-yum -y install atomic-openshift-excluder atomic-openshift-docker-excluder
-atomic-openshift-excluder unexclude
-yum -y install cloud-utils-growpart.noarch
-
 # Grow Root File System
 echo $(date) " - Grow Root FS"
 
