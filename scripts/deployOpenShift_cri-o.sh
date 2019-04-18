@@ -133,7 +133,7 @@ for (( c=0; c<$MASTERCOUNT; c++ ))
 do
     printf -v hostnum "%02d" $c
     mastergroup="$mastergroup
-$MASTER-$hostnum openshift_node_labels=\"{'region': 'master', 'zone': 'default'}\" openshift_hostname=$MASTER-$hostnum"
+$MASTER-$hostnum openshift_node_labels=\"{'region': 'master', 'zone': 'default', 'runtime': 'cri-o'}\" openshift_hostname=$MASTER-$hostnum"
 done
 
 # Create Infra nodes grouping 
@@ -143,7 +143,7 @@ for (( c=0; c<$INFRACOUNT; c++ ))
 do
     printf -v hostnum "%02d" $c
     infragroup="$infragroup
-$INFRA-$hostnum openshift_node_labels=\"{'region': 'infra', 'zone': 'default'}\" openshift_hostname=$INFRA-$hostnum"
+$INFRA-$hostnum openshift_node_labels=\"{'region': 'infra', 'zone': 'default', 'runtime': 'cri-o'}\" openshift_hostname=$INFRA-$hostnum"
 done
 
 # Create Nodes grouping
@@ -153,7 +153,7 @@ for (( c=0; c<$NODECOUNT; c++ ))
 do
     printf -v hostnum "%02d" $c
     nodegroup="$nodegroup
-$NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default'}\" openshift_hostname=$NODE-$hostnum"
+$NODE-$hostnum openshift_node_labels=\"{'region': 'app', 'zone': 'default', 'runtime': 'cri-o'}\" openshift_hostname=$NODE-$hostnum"
 done
 
 # Create gluster disk device list
@@ -291,7 +291,7 @@ openshift_metrics_start_cluster=true
 openshift_metrics_hawkular_nodeselector={"region":"infra"}
 openshift_metrics_cassandra_nodeselector={"region":"infra"}
 openshift_metrics_heapster_nodeselector={"region":"infra"}
-openshift_hosted_metrics_public_url=https://metrics.$ROUTING/hawkular/metrics
+openshift_metrics_hawkular_hostname=metrics.$ROUTING
 
 # Setup logging
 openshift_logging_install_logging=false
