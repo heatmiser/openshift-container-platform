@@ -10,6 +10,8 @@ We have branches for the stable releases:
 - Release-3.6 (As is; no longer updated)
 - Release-3.7
 - Release-3.9
+- Release-3.10
+- Release-3.11
 - azurestack-release-3.7
 - azurestack-release-3.9
 
